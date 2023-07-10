@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<style>
+		body{
+			margin: 0;
+			padding: 0;
+			overflow: hidden;
+		}
+		#perfText{
+			position: absolute;
+			top: 0;
+			left: 0;
+			padding: 10px;
+			background: rgba(255, 255, 255, 0.5);
+			color: white;
+			font-family: monospace;
+			font-size: 12px;
+		}
+	</style>
+</head>
+<body>
+	<script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+
+	<!-- Import ThreeJS 0.154.0 and our Octree lib-->
+	<script type="importmap">
+		{
+			"imports": {
+				"three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+				"three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
+				"threejs-octree": "../bundle.js"
+			}
+		}
+	</script>
+
+	<span id="perfText"></span>
+
+	<!-- Example code -->
+	<script type="module">
+		import { AmbientLight, Box3, BoxGeometry, DirectionalLight, Mesh, MeshStandardMaterial, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from "three";
+
+		import Octree from "threejs-octree";
+
+		let camera, scene, renderer;
+		const octree = new Octree(16, 4);
+
+		const cubes = [];
+		const dynamicCubes = [];
+
+		const worldExtent = 20;
+
+		async function init(){
+			camera = new PerspectiveCamera( 50, window.innerWidth/window.innerHeight, 0.1, 1000 );
+			camera.position.z = 50;
+			camera.position.y = 50;
+			camera.lookAt(0, 0, 0);
+
+			renderer = new WebGLRenderer();
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			document.body.appendChild( renderer.domElement );
+
+			scene = new Scene();
+
+			// ambient light
+			const ambientLight = new AmbientLight(0xffffff, 0.3);
+			scene.add(ambientLight);
+
+			// Add directional light
+			const directionalLight = new DirectionalLight(0xffffff, 0.7);
+			directionalLight.position.set(0, 1, 0);
+			scene.add(directionalLight);
+
+			const geometry = new BoxGeometry();
+			const materialStatic = new MeshStandardMaterial( { color: 0x00ff00 } );
+			const materialDynamic = new MeshStandardMaterial( { color: 0x0000ff } );
+
+			// spawn static cubes
+			for(let i = 0; i < 500; i++){
+				const cube = new Mesh( geometry, materialStatic );
+
+				cube.position.x = Math.random() * worldExtent * 2 - worldExtent;
+				cube.position.y = Math.random() * worldExtent * 2 - worldExtent;
+				cube.position.z = Math.random() * worldExtent * 2 - worldExtent;
+
+				const movingSpeed = 0.1;
+
+				cube.velocity = new Vector3(
+					Math.random() * movingSpeed * 2 - movingSpeed,
+					Math.random() * movingSpeed * 2 - movingSpeed,
+					Math.random() * movingSpeed * 2 - movingSpeed
+				)
+
+				scene.add( cube );
+
+				cubes.push(cube);
+			}
+
+			// spawn dynamic cubes
+			for(let i = 0; i < 100; i++){
+				const cube = new Mesh( geometry, materialDynamic );
+
+				cube.position.x = Math.random() * worldExtent * 2 - worldExtent;
+				cube.position.y = Math.random() * worldExtent * 2 - worldExtent;
+				cube.position.z = Math.random() * worldExtent * 2 - worldExtent;
+
+				const movingSpeed = 0.1;
+
+				cube.velocity = new Vector3(
+					Math.random() * movingSpeed * 2 - movingSpeed,
+					Math.random() * movingSpeed * 2 - movingSpeed,
+					Math.random() * movingSpeed * 2 - movingSpeed
+				)
+
+				scene.add( cube );
+
+				cubes.push(cube);
+				dynamicCubes.push(cube);
+			}
+
+			const worldExtents = new Box3(new Vector3(-worldExtent, -worldExtent, -worldExtent), new Vector3(worldExtent, worldExtent, worldExtent));
+			octree.update(worldExtents.min, worldExtents.max, cubes);
+
+			resize();
+			window.addEventListener('resize', resize);
+
+			render();
+		}
+
+		function resize(){
+			camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
+			renderer.setSize( window.innerWidth, window.innerHeight );
+		}
+
+		function render() {
+			requestAnimationFrame( render );
+
+			renderer.clear();
+			renderer.render( scene, camera );
+
+			const startOctreeTime = performance.now();
+			for(let i = 0; i < dynamicCubes.length; i++){
+				const cube = dynamicCubes[i];
+				cube.position.add(cube.velocity);
+
+				if(cube.position.x > worldExtent || cube.position.x < -worldExtent){
+					cube.velocity.x *= -1;
+				}
+
+				if(cube.position.y > worldExtent || cube.position.y < -worldExtent){
+					cube.velocity.y *= -1;
+				}
+
+				if(cube.position.z > worldExtent || cube.position.z < -worldExtent){
+					cube.velocity.z *= -1;
+				}
+
+				// update cube position in octree
+				octree.removeMesh(cube);
+				octree.addMesh(cube);
+			}
+			const endOctreeTime = performance.now();
+
+			const timeDiff = endOctreeTime - startOctreeTime;
+
+			perfText.innerText = `Octree update took ${timeDiff.toFixed(2)}ms`;
+
+			octree.debugDraw();
+		};
+
+		init();
+
+	</script>
+</body>
+</html>
