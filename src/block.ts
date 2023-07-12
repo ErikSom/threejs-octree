@@ -152,7 +152,7 @@ export class OctreeBlock<T> {
         }
     }
 
-    public select(frustumPlanes: Plane[], selection: UniqueArray): void {
+    public inFrustum(frustumPlanes: Plane[], selection: UniqueArray): void {
         for (let p = 0; p < 6; ++p) {
             let canReturnFalse = true;
             const frustumPlane = frustumPlanes[p];
@@ -170,7 +170,7 @@ export class OctreeBlock<T> {
         if (this.blocks) {
             for (let index = 0; index < this.blocks.length; index++) {
                 const block = this.blocks[index];
-                block.select(frustumPlanes, selection);
+                block.inFrustum(frustumPlanes, selection);
             }
             return;
         }
@@ -208,7 +208,7 @@ export class OctreeBlock<T> {
     }
 
     public createInnerBlocks(): void {
-        OctreeBlock._CreateBlocks(this._minPoint, this._maxPoint, this.entries, this._capacity, this._depth, this._maxDepth, this as IOctreeContainer<T>);
+        OctreeBlock.CreateBlocks(this._minPoint, this._maxPoint, this.entries, this._capacity, this._depth, this._maxDepth, this as IOctreeContainer<T>);
         this.entries.splice(0);
 
         this.destroyDebugDraw();
@@ -254,7 +254,7 @@ export class OctreeBlock<T> {
         this.destroyDebugDraw();
     }
 
-    public static _CreateBlocks<T>(
+    public static CreateBlocks<T>(
         worldMin: Vector3,
         worldMax: Vector3,
         entries: Mesh[],

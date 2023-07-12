@@ -121,7 +121,7 @@
 			}
 
 			const worldExtents = new Box3(new Vector3(-worldExtent, -worldExtent, -worldExtent), new Vector3(worldExtent, worldExtent, worldExtent));
-			octree.update(worldExtents.min, worldExtents.max, cubes);
+			octree.initialize(worldExtents.min, worldExtents.max, cubes);
 
 			resize();
 			window.addEventListener('resize', resize);
@@ -158,9 +158,7 @@
 					cube.velocity.z *= -1;
 				}
 
-				// update cube position in octree
-				octree.removeMesh(cube);
-				octree.addMesh(cube);
+				octree.updateMesh(cube);
 			}
 			const endOctreeTime = performance.now();
 

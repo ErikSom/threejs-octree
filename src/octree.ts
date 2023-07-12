@@ -17,8 +17,8 @@ export default class Octree<T> {
         this._selectionContent = new UniqueArray();
     }
 
-    public update(worldMin: Vector3, worldMax: Vector3, entries: Mesh[]): void {
-        OctreeBlock._CreateBlocks(worldMin, worldMax, entries, this._maxBlockCapacity, 0, this.maxDepth, this);
+    public initialize(worldMin: Vector3, worldMax: Vector3, entries: Mesh[]): void {
+        OctreeBlock.CreateBlocks(worldMin, worldMax, entries, this._maxBlockCapacity, 0, this.maxDepth, this);
     }
 
     public addMesh(entry: Mesh): void {
@@ -35,12 +35,17 @@ export default class Octree<T> {
         }
     }
 
-    public select(frustumPlanes: Plane[]): UniqueArray {
+    public updateMesh(entry: Mesh): void {
+        this.removeMesh(entry);
+        this.addMesh(entry);
+    }
+
+    public inFrustum(frustumPlanes: Plane[]): UniqueArray {
         this._selectionContent.reset();
 
         for (let index = 0; index < this.blocks.length; index++) {
             const block = this.blocks[index];
-            block.select(frustumPlanes, this._selectionContent);
+            block.inFrustum(frustumPlanes, this._selectionContent);
         }
 
         return this._selectionContent;

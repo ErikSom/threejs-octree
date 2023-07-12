@@ -8,7 +8,7 @@ it('Should correctly add and remove a mesh', () => {
 
 	const extent = 10;
 
-    octree.update(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh]);
+    octree.initialize(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh]);
     expect(octree.blocks.every(block => block.entries.includes(mesh))).toBe(true);
 
     octree.removeMesh(mesh);
@@ -25,7 +25,7 @@ it('Should correctly add and remove multiple meshes', () => {
 	mesh2.position.set(extent, extent, extent);
 	mesh2.updateMatrixWorld(true);
 
-	octree.update(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh1, mesh2]);
+	octree.initialize(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh1, mesh2]);
 
 	expect(octree.blocks.every(block => block.entries.includes(mesh1))).toBe(true);
 
@@ -55,7 +55,7 @@ it('Should fold when adding more than maxBlockCapacity meshes', () => {
 	mesh2.position.set(-extent, -extent, -extent);
 	mesh2.updateMatrixWorld(true);
 
-	octree.update(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh1, mesh2]);
+	octree.initialize(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh1, mesh2]);
 
 	// no root block should have any entries
 	expect(octree.blocks.every(block => block.entries.length === 0)).toBe(true);
@@ -76,7 +76,7 @@ it('Should unfold when removing meshes', () => {
 	mesh2.position.set(-extent, -extent, -extent);
 	mesh2.updateMatrixWorld(true);
 
-	octree.update(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh1, mesh2]);
+	octree.initialize(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh1, mesh2]);
 
 	// no root block should have any entries
 	expect(octree.blocks.every(block => block.entries.length === 0)).toBe(true);

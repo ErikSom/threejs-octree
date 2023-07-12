@@ -10720,7 +10720,7 @@ class OctreeBlock {
             this.addEntry(mesh);
         }
     }
-    select(frustumPlanes, selection) {
+    inFrustum(frustumPlanes, selection) {
         for (let p = 0; p < 6; ++p) {
             let canReturnFalse = true;
             const frustumPlane = frustumPlanes[p];
@@ -10737,7 +10737,7 @@ class OctreeBlock {
         if (this.blocks) {
             for (let index = 0; index < this.blocks.length; index++) {
                 const block = this.blocks[index];
-                block.select(frustumPlanes, selection);
+                block.inFrustum(frustumPlanes, selection);
             }
             return;
         }
@@ -10769,7 +10769,7 @@ class OctreeBlock {
         }
     }
     createInnerBlocks() {
-        OctreeBlock._CreateBlocks(this._minPoint, this._maxPoint, this.entries, this._capacity, this._depth, this._maxDepth, this);
+        OctreeBlock.CreateBlocks(this._minPoint, this._maxPoint, this.entries, this._capacity, this._depth, this._maxDepth, this);
         this.entries.splice(0);
         this.destroyDebugDraw();
     }
@@ -10808,7 +10808,7 @@ class OctreeBlock {
         }
         this.destroyDebugDraw();
     }
-    static _CreateBlocks(worldMin, worldMax, entries, maxBlockCapacity, currentDepth, maxDepth, target) {
+    static CreateBlocks(worldMin, worldMax, entries, maxBlockCapacity, currentDepth, maxDepth, target) {
         target.blocks = new Array();
         const blockSize = new Vector3((worldMax.x - worldMin.x) / 2, (worldMax.y - worldMin.y) / 2, (worldMax.z - worldMin.z) / 2);
         for (let x = 0; x < 2; x++) {
@@ -10870,8 +10870,8 @@ class Octree {
         this._maxBlockCapacity = maxBlockCapacity || 64;
         this._selectionContent = new UniqueArray();
     }
-    update(worldMin, worldMax, entries) {
-        OctreeBlock._CreateBlocks(worldMin, worldMax, entries, this._maxBlockCapacity, 0, this.maxDepth, this);
+    initialize(worldMin, worldMax, entries) {
+        OctreeBlock.CreateBlocks(worldMin, worldMax, entries, this._maxBlockCapacity, 0, this.maxDepth, this);
     }
     addMesh(entry) {
         for (let index = 0; index < this.blocks.length; index++) {
@@ -10885,11 +10885,15 @@ class Octree {
             block.removeEntry(entry);
         }
     }
-    select(frustumPlanes) {
+    updateMesh(entry) {
+        this.removeMesh(entry);
+        this.addMesh(entry);
+    }
+    inFrustum(frustumPlanes) {
         this._selectionContent.reset();
         for (let index = 0; index < this.blocks.length; index++) {
             const block = this.blocks[index];
-            block.select(frustumPlanes, this._selectionContent);
+            block.inFrustum(frustumPlanes, this._selectionContent);
         }
         return this._selectionContent;
     }
