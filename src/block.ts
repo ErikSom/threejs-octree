@@ -126,7 +126,7 @@ export class OctreeBlock<T> {
             }
 
             // If total entries in child blocks is less than capacity, collapse the blocks
-            if (totalEntries < this._capacity) {
+            if (totalEntries <= this._capacity && this._depth > 0) {
                 for (let index = 0; index < this.blocks.length; index++) {
                     this.entries = this.entries.concat(this.blocks[index].entries);
                     this.blocks[index].destroy();
