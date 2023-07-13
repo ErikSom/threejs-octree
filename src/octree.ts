@@ -1,4 +1,4 @@
-import { Mesh, MeshBasicMaterial, Plane, Ray, SphereGeometry, Vector3 } from "three";
+import { Camera, Frustum, Matrix4, Mesh, MeshBasicMaterial, Ray, SphereGeometry, Vector3 } from "three";
 import { OctreeBlock } from "./block";
 import UniqueArray from "./uniqueArray";
 
@@ -8,6 +8,8 @@ export default class Octree<T> {
 
     private _maxBlockCapacity: number;
     private _selectionContent: UniqueArray;
+    private _frustum: Frustum = new Frustum();
+    private _matrix: Matrix4 = new Matrix4();
 
     constructor(
         maxBlockCapacity?: number,
@@ -40,12 +42,15 @@ export default class Octree<T> {
         this.addMesh(entry);
     }
 
-    public inFrustum(frustumPlanes: Plane[]): UniqueArray {
+    public inFrustum(camera: Camera): UniqueArray {
         this._selectionContent.reset();
+
+        this._matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+        this._frustum.setFromProjectionMatrix(this._matrix);
 
         for (let index = 0; index < this.blocks.length; index++) {
             const block = this.blocks[index];
-            block.inFrustum(frustumPlanes, this._selectionContent);
+            block.inFrustum(this._frustum, this._selectionContent);
         }
 
         return this._selectionContent;

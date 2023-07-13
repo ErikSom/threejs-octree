@@ -9,10 +9,10 @@ it('Should correctly add and remove a mesh', () => {
 	const extent = 10;
 
     octree.initialize(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh]);
-    expect(octree.blocks.every(block => block.entries.includes(mesh))).toBe(true);
+    expect(octree.blocks.every(block => block.entries.array.includes(mesh))).toBe(true);
 
     octree.removeMesh(mesh);
-    expect(octree.blocks.every(block => !block.entries.includes(mesh))).toBe(true);
+    expect(octree.blocks.every(block => !block.entries.array.includes(mesh))).toBe(true);
 });
 
 it('Should correctly add and remove multiple meshes', () => {
@@ -27,16 +27,16 @@ it('Should correctly add and remove multiple meshes', () => {
 
 	octree.initialize(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh1, mesh2]);
 
-	expect(octree.blocks.every(block => block.entries.includes(mesh1))).toBe(true);
+	expect(octree.blocks.every(block => block.entries.array.includes(mesh1))).toBe(true);
 
 	// we should only have one block with mesh2
-	expect(octree.blocks.filter(block => block.entries.includes(mesh2)).length).toBe(1);
+	expect(octree.blocks.filter(block => block.entries.array.includes(mesh2)).length).toBe(1);
 
 	octree.removeMesh(mesh1);
-	expect(octree.blocks.every(block => !block.entries.includes(mesh1))).toBe(true);
+	expect(octree.blocks.every(block => !block.entries.array.includes(mesh1))).toBe(true);
 
 	// we should still have one block with mesh2
-	expect(octree.blocks.filter(block => block.entries.includes(mesh2)).length).toBe(1);
+	expect(octree.blocks.filter(block => block.entries.array.includes(mesh2)).length).toBe(1);
 
 	octree.removeMesh(mesh2);
 
@@ -90,5 +90,5 @@ it('Should unfold when removing meshes', () => {
 	expect(octree.blocks[0].blocks === null).toBe(true);
 
 	// root block should have mesh2
-	expect(octree.blocks.some(block => block.entries.includes(mesh2))).toBe(true);
+	expect(octree.blocks.some(block => block.entries.array.includes(mesh2))).toBe(true);
 });

@@ -1,4 +1,4 @@
-import { Box3, Box3Helper, BufferGeometry, Color, Mesh, Plane, Ray, Sphere, Vector3 } from "three";
+import { Box3, Box3Helper, BufferGeometry, Color, Frustum, Mesh, Plane, Ray, Sphere, Vector3 } from "three";
 import UniqueArray from "./uniqueArray";
 
 export interface IOctreeContainer<T> {
@@ -13,7 +13,7 @@ interface IOctreeMesh {
 }
 
 export class OctreeBlock<T> {
-    public entries = new Array<Mesh>();
+    public entries = new UniqueArray();
     public blocks: Array<OctreeBlock<T>> | null = null;
 
     private _sphere: Sphere = new Sphere();
@@ -83,7 +83,7 @@ export class OctreeBlock<T> {
         const boundingBoxWorld = (entry as IOctreeMesh)._maxBoundingBox?.clone().applyMatrix4(entry.matrixWorld);
 
         if (boundingBoxWorld?.intersectsBox(this.box)) {
-            this.entries.push(entry);
+            this.entries.add(entry);
         }
 
         if (this.entries.length > this.capacity && this._depth < this._maxDepth) {
@@ -126,23 +126,21 @@ export class OctreeBlock<T> {
             }
 
             // If total entries in child blocks is less than capacity, collapse the blocks
-            if (totalEntries <= this._capacity && this._depth > 0) {
+            if (totalEntries <= this._capacity) {
+                this.entries = new UniqueArray();
                 for (let index = 0; index < this.blocks.length; index++) {
-                    this.entries = this.entries.concat(this.blocks[index].entries);
+                    this.entries.concat(this.blocks[index].entries.array);
                     this.blocks[index].destroy();
                 }
                 this.blocks = null;
                 this.destroyDebugDraw();
+                this.debugDraw();
             }
 
             return;
         }
 
-        const entryIndex = this.entries.indexOf(entry);
-
-        if (entryIndex > -1) {
-            this.entries.splice(entryIndex, 1);
-        }
+        this.entries.remove(entry);
     }
 
     public addEntries(entries: Mesh[]): void {
@@ -152,30 +150,20 @@ export class OctreeBlock<T> {
         }
     }
 
-    public inFrustum(frustumPlanes: Plane[], selection: UniqueArray): void {
-        for (let p = 0; p < 6; ++p) {
-            let canReturnFalse = true;
-            const frustumPlane = frustumPlanes[p];
-            for (let i = 0; i < 8; ++i) {
-                if (dotCoordinate(frustumPlane, this._boundingVectors[i]) >= 0) {
-                    canReturnFalse = false;
-                    break;
-                }
-            }
-            if (canReturnFalse) {
-                return;
-            }
+    public inFrustum(frustum: Frustum, selection: UniqueArray): void {
+        if(!frustum.intersectsBox(this.box)){
+            return;
         }
 
         if (this.blocks) {
             for (let index = 0; index < this.blocks.length; index++) {
                 const block = this.blocks[index];
-                block.inFrustum(frustumPlanes, selection);
+                block.inFrustum(frustum, selection);
             }
             return;
         }
 
-        selection.concat(this.entries);
+        selection.concat(this.entries.array);
     }
 
     public intersects(sphereCenter: Vector3, sphereRadius: number, selection: UniqueArray): void {
@@ -190,7 +178,7 @@ export class OctreeBlock<T> {
                 return;
             }
 
-            selection.concat(this.entries);
+            selection.concat(this.entries.array);
         }
     }
 
@@ -203,13 +191,13 @@ export class OctreeBlock<T> {
                 }
                 return;
             }
-            selection.concat(this.entries);
+            selection.concat(this.entries.array);
         }
     }
 
     public createInnerBlocks(): void {
-        OctreeBlock.CreateBlocks(this._minPoint, this._maxPoint, this.entries, this._capacity, this._depth, this._maxDepth, this as IOctreeContainer<T>);
-        this.entries.splice(0);
+        OctreeBlock.CreateBlocks(this._minPoint, this._maxPoint, this.entries.array, this._capacity, this._depth, this._maxDepth, this as IOctreeContainer<T>);
+        this.entries.reset();
 
         this.destroyDebugDraw();
     }
@@ -230,7 +218,7 @@ export class OctreeBlock<T> {
             boxHelper.updateMatrixWorld(true);
             boxHelper.updateMatrix();
 
-            this.entries[0].parent?.add(boxHelper);
+            this.entries.array[0].parent?.add(boxHelper);
 
             this._debugDrawBox = boxHelper;
         }

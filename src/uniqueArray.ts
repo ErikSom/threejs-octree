@@ -1,5 +1,5 @@
 export default class UniqueArray {
-	private array: any[];
+	public array: any[];
 	private map: Map<any, number>;
 
 	constructor() {
@@ -8,14 +8,14 @@ export default class UniqueArray {
 	}
 
 	add(value) {
-		if (!this.map.has(value.id)) {
+		if (!this.map.has(value.uuid)) {
 			this.array.push(value);
-			this.map.set(value, this.array.length - 1);
+			this.map.set(value.uuid, this.array.length - 1);
 		}
 	}
 
 	remove(value) {
-		const index = this.map.get(value);
+		const index = this.map.get(value.uuid);
 		if (index === undefined) {
 			return;
 		}
@@ -23,12 +23,12 @@ export default class UniqueArray {
 
 		this.array[index] = lastElement;
 		this.array.pop();
-		this.map.set(lastElement, index);
-		this.map.delete(value);
+		this.map.set(lastElement.uuid, index);
+		this.map.delete(value.uuid);
 	}
 
 	contains(value) {
-		return this.map.has(value);
+		return this.map.has(value.uuid);
 	}
 
 	reset() {
