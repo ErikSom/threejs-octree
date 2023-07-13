@@ -1,10 +1,10 @@
-import { Box3, Box3Helper, BufferGeometry, Color, Frustum, Mesh, Plane, Ray, Sphere, Vector3 } from "three";
+import { Box3, Box3Helper, BufferGeometry, Color, Frustum, Mesh, Ray, Sphere, Vector3 } from "three";
 import UniqueArray from "./uniqueArray";
 
 export interface IOctreeContainer<T> {
     blocks: Array<OctreeBlock<T>>;
+    setDirty?(): void;
 }
-const dotCoordinate = (plane, point)  => plane.normal.x * point.x + plane.normal.y * point.y + plane.normal.z * point.z + plane.constant;
 const debugDrawColor = new Color(0, 1, 0);
 
 interface IOctreeMesh {
@@ -24,6 +24,8 @@ export class OctreeBlock<T> {
     private _maxPoint: Vector3;
     private _box: Box3 = new Box3();
     private _boundingVectors = new Array<Vector3>();
+    private _descendantCount: number = 0;
+    private _root: IOctreeContainer<T>;
 
     private _debugDrawBox: Box3Helper | null = null;
 
@@ -68,13 +70,28 @@ export class OctreeBlock<T> {
         return this._box;
     }
 
-    public addEntry(entry: Mesh): void {
+    public get depth(): number {
+        return this._depth;
+    }
+
+    public get descendantCount(): number {
+        return this._descendantCount;
+    }
+
+    public addEntry(entry: Mesh): boolean {
         if (this.blocks) {
+            let added = false;
             for (let index = 0; index < this.blocks.length; index++) {
                 const block = this.blocks[index];
-                block.addEntry(entry);
+                if(block.addEntry(entry)){
+                    added = true;
+                };
             }
-            return;
+            if(added){
+                this._descendantCount++;
+            }
+
+            return added;
         }
 
         // Using a max bounding box so we can cache the result for any given orientation of the mesh
@@ -82,13 +99,17 @@ export class OctreeBlock<T> {
 
         const boundingBoxWorld = (entry as IOctreeMesh)._maxBoundingBox?.clone().applyMatrix4(entry.matrixWorld);
 
+        let added = false;
         if (boundingBoxWorld?.intersectsBox(this.box)) {
-            this.entries.add(entry);
+            added = this.entries.add(entry);
         }
 
         if (this.entries.length > this.capacity && this._depth < this._maxDepth) {
-            this.createInnerBlocks();
+            // if we have more entries than our capacity, set dirty on root
+            this._root.setDirty?.();
         }
+
+        return added;
     }
 
     private computeMaxBoundingBox(entry: IOctreeMesh) {
@@ -113,34 +134,29 @@ export class OctreeBlock<T> {
         entry._maxBoundingBox = boundingBox
     }
 
-    public removeEntry(entry: Mesh): void {
+    public removeEntry(entry: Mesh): boolean {
         if (this.blocks) {
+            let removed = false;
             for (let index = 0; index < this.blocks.length; index++) {
                 const block = this.blocks[index];
-                block.removeEntry(entry);
+                if(block.removeEntry(entry)){
+                    removed = true;
+                };
             }
 
-            let totalEntries = 0;
-            for (let index = 0; index < this.blocks.length; index++) {
-                totalEntries += this.blocks[index].entries.length;
+            if(removed){
+                this._descendantCount--;
             }
 
-            // If total entries in child blocks is less than capacity, collapse the blocks
-            if (totalEntries <= this._capacity) {
-                this.entries = new UniqueArray();
-                for (let index = 0; index < this.blocks.length; index++) {
-                    this.entries.concat(this.blocks[index].entries.array);
-                    this.blocks[index].destroy();
-                }
-                this.blocks = null;
-                this.destroyDebugDraw();
-                this.debugDraw();
+            // If total descendants is less than capacity, set dirty on root
+            if (this._descendantCount <= this._capacity) {
+                this._root.setDirty?.();
             }
 
-            return;
+            return removed;
         }
 
-        this.entries.remove(entry);
+        return this.entries.remove(entry);
     }
 
     public addEntries(entries: Mesh[]): void {
@@ -195,10 +211,21 @@ export class OctreeBlock<T> {
         }
     }
 
-    public createInnerBlocks(): void {
-        OctreeBlock.CreateBlocks(this._minPoint, this._maxPoint, this.entries.array, this._capacity, this._depth, this._maxDepth, this as IOctreeContainer<T>);
+    public split(): void {
+        OctreeBlock.CreateBlocks(this._minPoint, this._maxPoint, this.entries.array, this._capacity, this._depth, this._maxDepth, this as IOctreeContainer<T>, this._root);
         this.entries.reset();
 
+        this.destroyDebugDraw();
+    }
+
+    public collapse(): void {
+        this.entries = new UniqueArray();
+        for (let index = 0; index < this.blocks!.length; index++) {
+            this.entries.concat(this.blocks![index].entries.array);
+            this.blocks![index].destroy();
+        }
+        this._descendantCount = this.entries.length;
+        this.blocks = null;
         this.destroyDebugDraw();
     }
 
@@ -250,6 +277,7 @@ export class OctreeBlock<T> {
         currentDepth: number,
         maxDepth: number,
         target: IOctreeContainer<T>,
+        root: IOctreeContainer<T>,
     ): void {
         target.blocks = new Array<OctreeBlock<T>>();
         const blockSize = new Vector3((worldMax.x - worldMin.x) / 2, (worldMax.y - worldMin.y) / 2, (worldMax.z - worldMin.z) / 2);
@@ -261,6 +289,7 @@ export class OctreeBlock<T> {
                     const localMax = worldMin.clone().add(new Vector3(x + 1, y + 1, z + 1).multiply(blockSize));
 
                     const block = new OctreeBlock<T>(localMin, localMax, maxBlockCapacity, currentDepth + 1, maxDepth);
+                    block._root = root;
                     block.addEntries(entries);
                     target.blocks.push(block);
                 }

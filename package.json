@@ -1,6 +1,6 @@
 {
   "name": "threejs-octree",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Octree implementation for Three.js",
   "main": "src/octree.ts",
   "author": "Erik Sombroek",

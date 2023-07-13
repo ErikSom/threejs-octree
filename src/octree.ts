@@ -2,7 +2,6 @@ import { Camera, Frustum, Matrix4, Mesh, MeshBasicMaterial, Ray, SphereGeometry,
 import { OctreeBlock } from "./block";
 import UniqueArray from "./uniqueArray";
 
-
 export default class Octree<T> {
     public blocks: Array<OctreeBlock<T>>;
 
@@ -10,6 +9,9 @@ export default class Octree<T> {
     private _selectionContent: UniqueArray;
     private _frustum: Frustum = new Frustum();
     private _matrix: Matrix4 = new Matrix4();
+    private _descendantCount: number = 0;
+
+    private _nodesDirty: boolean = false;
 
     constructor(
         maxBlockCapacity?: number,
@@ -20,20 +22,63 @@ export default class Octree<T> {
     }
 
     public initialize(worldMin: Vector3, worldMax: Vector3, entries: Mesh[]): void {
-        OctreeBlock.CreateBlocks(worldMin, worldMax, entries, this._maxBlockCapacity, 0, this.maxDepth, this);
+        OctreeBlock.CreateBlocks(worldMin, worldMax, entries, this._maxBlockCapacity, 0, this.maxDepth, this, this);
+    }
+
+    private splitAndCollapse(blocks: Array<OctreeBlock<T>>): void {
+        for (let index = 0; index < blocks.length; index++) {
+            const block = blocks[index];
+
+            if(!block.blocks){
+                if (block.entries.length > block.capacity && block.depth < this.maxDepth) {
+                    if(index === 0) console.log('fold', block.entries.length, block.capacity, block.depth, this.maxDepth);
+                    block.split();
+                }
+            } else {
+                if(block.descendantCount <= block.capacity && block.depth > 0){
+                   block.collapse();
+                    if(index === 0) console.log('collapse', block.descendantCount, block.entries.length, block.capacity, block.depth, this.maxDepth);
+                }else {
+                    this.splitAndCollapse(block.blocks);
+                }
+            }
+        }
+    }
+
+    public setDirty(): void {
+        if(!this._nodesDirty){
+            setTimeout(() => {
+                this.splitAndCollapse(this.blocks)
+                this._nodesDirty = false;
+            }, 0);
+        }
+        this._nodesDirty = true;
     }
 
     public addMesh(entry: Mesh): void {
+        let added = false;
         for (let index = 0; index < this.blocks.length; index++) {
             const block = this.blocks[index];
-            block.addEntry(entry);
+            if(block.addEntry(entry)){
+                added = true;
+            };
+        }
+
+        if(added){
+            this._descendantCount++;
         }
     }
 
     public removeMesh(entry: Mesh): void {
+        let removed = false;
         for (let index = 0; index < this.blocks.length; index++) {
             const block = this.blocks[index];
-            block.removeEntry(entry);
+            if(block.removeEntry(entry)){
+                removed = true;
+            }
+        }
+        if(removed){
+            this._descendantCount--;
         }
     }
 

@@ -7,17 +7,19 @@ export default class UniqueArray {
 		this.map = new Map();
 	}
 
-	add(value) {
+	add(value) : boolean {
 		if (!this.map.has(value.uuid)) {
 			this.array.push(value);
 			this.map.set(value.uuid, this.array.length - 1);
+			return true;
 		}
+		return false;
 	}
 
-	remove(value) {
+	remove(value) : boolean {
 		const index = this.map.get(value.uuid);
 		if (index === undefined) {
-			return;
+			return false;
 		}
 		const lastElement = this.array[this.array.length - 1];
 
@@ -25,6 +27,8 @@ export default class UniqueArray {
 		this.array.pop();
 		this.map.set(lastElement.uuid, index);
 		this.map.delete(value.uuid);
+
+		return true;
 	}
 
 	contains(value) {

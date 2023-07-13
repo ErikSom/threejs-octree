@@ -11007,18 +11007,21 @@ class UniqueArray {
         if (!this.map.has(value.uuid)) {
             this.array.push(value);
             this.map.set(value.uuid, this.array.length - 1);
+            return true;
         }
+        return false;
     }
     remove(value) {
         const index = this.map.get(value.uuid);
         if (index === undefined) {
-            return;
+            return false;
         }
         const lastElement = this.array[this.array.length - 1];
         this.array[index] = lastElement;
         this.array.pop();
         this.map.set(lastElement.uuid, index);
         this.map.delete(value.uuid);
+        return true;
     }
     contains(value) {
         return this.map.has(value.uuid);
@@ -11045,6 +11048,7 @@ class OctreeBlock {
         this._sphere = new Sphere();
         this._box = new Box3();
         this._boundingVectors = new Array();
+        this._descendantCount = 0;
         this._debugDrawBox = null;
         this._capacity = capacity;
         this._depth = depth;
@@ -11074,24 +11078,39 @@ class OctreeBlock {
     get box() {
         return this._box;
     }
+    get depth() {
+        return this._depth;
+    }
+    get descendantCount() {
+        return this._descendantCount;
+    }
     addEntry(entry) {
-        var _a;
+        var _a, _b, _c;
         if (this.blocks) {
+            let added = false;
             for (let index = 0; index < this.blocks.length; index++) {
                 const block = this.blocks[index];
-                block.addEntry(entry);
+                if (block.addEntry(entry)) {
+                    added = true;
+                }
             }
-            return;
+            if (added) {
+                this._descendantCount++;
+            }
+            return added;
         }
         // Using a max bounding box so we can cache the result for any given orientation of the mesh
         this.computeMaxBoundingBox(entry);
         const boundingBoxWorld = (_a = entry._maxBoundingBox) === null || _a === void 0 ? void 0 : _a.clone().applyMatrix4(entry.matrixWorld);
+        let added = false;
         if (boundingBoxWorld === null || boundingBoxWorld === void 0 ? void 0 : boundingBoxWorld.intersectsBox(this.box)) {
-            this.entries.add(entry);
+            added = this.entries.add(entry);
         }
         if (this.entries.length > this.capacity && this._depth < this._maxDepth) {
-            this.createInnerBlocks();
+            // if we have more entries than our capacity, set dirty on root
+            (_c = (_b = this._root).setDirty) === null || _c === void 0 ? void 0 : _c.call(_b);
         }
+        return added;
     }
     computeMaxBoundingBox(entry) {
         entry.geometry.computeBoundingBox();
@@ -11107,29 +11126,25 @@ class OctreeBlock {
         entry._maxBoundingBox = boundingBox;
     }
     removeEntry(entry) {
+        var _a, _b;
         if (this.blocks) {
+            let removed = false;
             for (let index = 0; index < this.blocks.length; index++) {
                 const block = this.blocks[index];
-                block.removeEntry(entry);
-            }
-            let totalEntries = 0;
-            for (let index = 0; index < this.blocks.length; index++) {
-                totalEntries += this.blocks[index].entries.length;
-            }
-            // If total entries in child blocks is less than capacity, collapse the blocks
-            if (totalEntries <= this._capacity) {
-                this.entries = new UniqueArray();
-                for (let index = 0; index < this.blocks.length; index++) {
-                    this.entries.concat(this.blocks[index].entries.array);
-                    this.blocks[index].destroy();
+                if (block.removeEntry(entry)) {
+                    removed = true;
                 }
-                this.blocks = null;
-                this.destroyDebugDraw();
-                this.debugDraw();
             }
-            return;
+            if (removed) {
+                this._descendantCount--;
+            }
+            // If total descendants is less than capacity, set dirty on root
+            if (this._descendantCount <= this._capacity) {
+                (_b = (_a = this._root).setDirty) === null || _b === void 0 ? void 0 : _b.call(_a);
+            }
+            return removed;
         }
-        this.entries.remove(entry);
+        return this.entries.remove(entry);
     }
     addEntries(entries) {
         for (let index = 0; index < entries.length; index++) {
@@ -11175,9 +11190,19 @@ class OctreeBlock {
             selection.concat(this.entries.array);
         }
     }
-    createInnerBlocks() {
-        OctreeBlock.CreateBlocks(this._minPoint, this._maxPoint, this.entries.array, this._capacity, this._depth, this._maxDepth, this);
+    split() {
+        OctreeBlock.CreateBlocks(this._minPoint, this._maxPoint, this.entries.array, this._capacity, this._depth, this._maxDepth, this, this._root);
         this.entries.reset();
+        this.destroyDebugDraw();
+    }
+    collapse() {
+        this.entries = new UniqueArray();
+        for (let index = 0; index < this.blocks.length; index++) {
+            this.entries.concat(this.blocks[index].entries.array);
+            this.blocks[index].destroy();
+        }
+        this._descendantCount = this.entries.length;
+        this.blocks = null;
         this.destroyDebugDraw();
     }
     destroyDebugDraw() {
@@ -11215,7 +11240,7 @@ class OctreeBlock {
         }
         this.destroyDebugDraw();
     }
-    static CreateBlocks(worldMin, worldMax, entries, maxBlockCapacity, currentDepth, maxDepth, target) {
+    static CreateBlocks(worldMin, worldMax, entries, maxBlockCapacity, currentDepth, maxDepth, target, root) {
         target.blocks = new Array();
         const blockSize = new Vector3((worldMax.x - worldMin.x) / 2, (worldMax.y - worldMin.y) / 2, (worldMax.z - worldMin.z) / 2);
         for (let x = 0; x < 2; x++) {
@@ -11224,6 +11249,7 @@ class OctreeBlock {
                     const localMin = worldMin.clone().add(new Vector3(x, y, z).multiply(blockSize));
                     const localMax = worldMin.clone().add(new Vector3(x + 1, y + 1, z + 1).multiply(blockSize));
                     const block = new OctreeBlock(localMin, localMax, maxBlockCapacity, currentDepth + 1, maxDepth);
+                    block._root = root;
                     block.addEntries(entries);
                     target.blocks.push(block);
                 }
@@ -11237,22 +11263,67 @@ class Octree {
         this.maxDepth = maxDepth;
         this._frustum = new Frustum();
         this._matrix = new Matrix4();
+        this._descendantCount = 0;
+        this._nodesDirty = false;
         this._maxBlockCapacity = maxBlockCapacity || 64;
         this._selectionContent = new UniqueArray();
     }
     initialize(worldMin, worldMax, entries) {
-        OctreeBlock.CreateBlocks(worldMin, worldMax, entries, this._maxBlockCapacity, 0, this.maxDepth, this);
+        OctreeBlock.CreateBlocks(worldMin, worldMax, entries, this._maxBlockCapacity, 0, this.maxDepth, this, this);
+    }
+    splitAndCollapse(blocks) {
+        for (let index = 0; index < blocks.length; index++) {
+            const block = blocks[index];
+            if (!block.blocks) {
+                if (block.entries.length > block.capacity && block.depth < this.maxDepth) {
+                    if (index === 0)
+                        console.log('fold', block.entries.length, block.capacity, block.depth, this.maxDepth);
+                    block.split();
+                }
+            }
+            else {
+                if (block.descendantCount <= block.capacity && block.depth > 0) {
+                    block.collapse();
+                    if (index === 0)
+                        console.log('collapse', block.descendantCount, block.entries.length, block.capacity, block.depth, this.maxDepth);
+                }
+                else {
+                    this.splitAndCollapse(block.blocks);
+                }
+            }
+        }
+    }
+    setDirty() {
+        if (!this._nodesDirty) {
+            setTimeout(() => {
+                this.splitAndCollapse(this.blocks);
+                this._nodesDirty = false;
+            }, 0);
+        }
+        this._nodesDirty = true;
     }
     addMesh(entry) {
+        let added = false;
         for (let index = 0; index < this.blocks.length; index++) {
             const block = this.blocks[index];
-            block.addEntry(entry);
+            if (block.addEntry(entry)) {
+                added = true;
+            }
+        }
+        if (added) {
+            this._descendantCount++;
         }
     }
     removeMesh(entry) {
+        let removed = false;
         for (let index = 0; index < this.blocks.length; index++) {
             const block = this.blocks[index];
-            block.removeEntry(entry);
+            if (block.removeEntry(entry)) {
+                removed = true;
+            }
+        }
+        if (removed) {
+            this._descendantCount--;
         }
     }
     updateMesh(entry) {
