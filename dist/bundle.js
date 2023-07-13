@@ -11276,16 +11276,12 @@ class Octree {
             const block = blocks[index];
             if (!block.blocks) {
                 if (block.entries.length > block.capacity && block.depth < this.maxDepth) {
-                    if (index === 0)
-                        console.log('fold', block.entries.length, block.capacity, block.depth, this.maxDepth);
                     block.split();
                 }
             }
             else {
                 if (block.descendantCount <= block.capacity && block.depth > 0) {
                     block.collapse();
-                    if (index === 0)
-                        console.log('collapse', block.descendantCount, block.entries.length, block.capacity, block.depth, this.maxDepth);
                 }
                 else {
                     this.splitAndCollapse(block.blocks);

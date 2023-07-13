@@ -43,7 +43,7 @@ it('Should correctly add and remove multiple meshes', () => {
 	expect(octree.blocks.filter(block => block.entries.length > 0).length).toBe(0);
 });
 
-it('Should fold when adding more than maxBlockCapacity meshes', () => {
+it('Should fold when adding more than maxBlockCapacity meshes', async () => {
 	const octree = new Octree(1, 2);
 	const mesh1 = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
 	const mesh2 = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
@@ -56,6 +56,8 @@ it('Should fold when adding more than maxBlockCapacity meshes', () => {
 	mesh2.updateMatrixWorld(true);
 
 	octree.initialize(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh1, mesh2]);
+
+	await new Promise(resolve => setTimeout(resolve, 0));
 
 	// no root block should have any entries
 	expect(octree.blocks.every(block => block.entries.length === 0)).toBe(true);
@@ -64,7 +66,7 @@ it('Should fold when adding more than maxBlockCapacity meshes', () => {
 	expect(octree.blocks[0].blocks!.some(block => block.entries.length === 2)).toBe(true);
 });
 
-it('Should unfold when removing meshes', () => {
+it('Should unfold when removing meshes', async () => {
 	const octree = new Octree(1, 2);
 	const mesh1 = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
 	const mesh2 = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
@@ -78,6 +80,8 @@ it('Should unfold when removing meshes', () => {
 
 	octree.initialize(new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent), [mesh1, mesh2]);
 
+	await new Promise(resolve => setTimeout(resolve, 0));
+
 	// no root block should have any entries
 	expect(octree.blocks.every(block => block.entries.length === 0)).toBe(true);
 
@@ -85,6 +89,8 @@ it('Should unfold when removing meshes', () => {
 	expect(octree.blocks[0].blocks!.some(block => block.entries.length === 2)).toBe(true);
 
 	octree.removeMesh(mesh1);
+
+	await new Promise(resolve => setTimeout(resolve, 0));
 
 	// we should have unfolded
 	expect(octree.blocks[0].blocks === null).toBe(true);
