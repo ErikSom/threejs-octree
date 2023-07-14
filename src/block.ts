@@ -12,6 +12,8 @@ interface IOctreeMesh {
     geometry: BufferGeometry;
 }
 
+const b = new Box3();
+
 export class OctreeBlock<T> {
     public entries = new UniqueArray();
     public blocks: Array<OctreeBlock<T>> | null = null;
@@ -97,7 +99,7 @@ export class OctreeBlock<T> {
         // Using a max bounding box so we can cache the result for any given orientation of the mesh
         this.computeMaxBoundingBox(entry as IOctreeMesh);
 
-        const boundingBoxWorld = (entry as IOctreeMesh)._maxBoundingBox?.clone().applyMatrix4(entry.matrixWorld);
+        const boundingBoxWorld = b.copy((entry as IOctreeMesh)._maxBoundingBox!).applyMatrix4(entry.matrixWorld);
 
         let added = false;
         if (boundingBoxWorld?.intersectsBox(this.box)) {
