@@ -114,6 +114,8 @@ export class OctreeBlock<T> {
 
     private computeMaxBoundingBox(entry: IOctreeMesh) {
 
+        if(entry._maxBoundingBox) return;
+
         entry.geometry.computeBoundingBox();
 
         const bounds:Box3 = entry.geometry.boundingBox!;
