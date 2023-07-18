@@ -9,6 +9,8 @@ const debugDrawColor = new Color(0, 1, 0);
 
 interface IOctreeMesh {
     _maxBoundingBox?: Box3;
+    _maxWorldBoundingBox?: Box3;
+    isStatic?: boolean;
     geometry: BufferGeometry;
 }
 
@@ -99,7 +101,17 @@ export class OctreeBlock<T> {
         // Using a max bounding box so we can cache the result for any given orientation of the mesh
         this.computeMaxBoundingBox(entry as IOctreeMesh);
 
-        const boundingBoxWorld = b.copy((entry as IOctreeMesh)._maxBoundingBox!).applyMatrix4(entry.matrixWorld);
+        const boundingBoxWorld = b;
+
+        // If the mesh is static, we can cache the world bounding box
+        if((entry as IOctreeMesh).isStatic){
+            if(!(entry as IOctreeMesh)._maxWorldBoundingBox){
+                (entry as IOctreeMesh)._maxWorldBoundingBox = (entry as IOctreeMesh)._maxBoundingBox!.clone().applyMatrix4(entry.matrixWorld);
+            }
+            boundingBoxWorld.copy((entry as IOctreeMesh)._maxWorldBoundingBox!);
+        }else{
+            boundingBoxWorld.copy((entry as IOctreeMesh)._maxBoundingBox!).applyMatrix4(entry.matrixWorld);
+        }
 
         let added = false;
         if (boundingBoxWorld?.intersectsBox(this.box)) {
