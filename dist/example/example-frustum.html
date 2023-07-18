@@ -10,7 +10,7 @@
 			padding: 0;
 			overflow: hidden;
 		}
-		#perfText{
+		#perfText, #naiveQueryTime, #octreFrustumQueryText, #performanceGainText{
 			position: absolute;
 			top: 0;
 			left: 0;
@@ -19,6 +19,15 @@
 			color: white;
 			font-family: monospace;
 			font-size: 12px;
+		}
+		#naiveQueryTime{
+			top: 34px;
+		}
+		#octreFrustumQueryText{
+			top: 68px;
+		}
+		#performanceGainText{
+			top: 102px;
 		}
 	</style>
 </head>
@@ -37,10 +46,13 @@
 	</script>
 
 	<span id="perfText"></span>
+	<span id="naiveQueryTime"></span>
+	<span id="octreFrustumQueryText"></span>
+	<span id="performanceGainText"></span>
 
 	<!-- Example code -->
 	<script type="module">
-		import { AmbientLight, Box3, BoxGeometry, DirectionalLight, Mesh, MeshStandardMaterial, PerspectiveCamera, Scene, Vector3, WebGLRenderer, CameraHelper } from "three";
+		import { AmbientLight, Box3, BoxGeometry, DirectionalLight, Mesh, MeshStandardMaterial, PerspectiveCamera, Scene, Vector3, WebGLRenderer, CameraHelper, Matrix4, Frustum } from "three";
 
 		import Octree from "threejs-octree";
 
@@ -48,7 +60,7 @@
 
 
 		let camera, scene, renderer, controls, selectionCamera;
-		const octree = new Octree(16, 4);
+		const octree = new Octree(200, 4);
 
 		const cubes = [];
 		const dynamicCubes = [];
@@ -58,6 +70,11 @@
 		let selectedCubes = null;
 
 		const selectedMaterial = new MeshStandardMaterial( { color: 0xffa500 } );
+
+        const selectionCameraFrustum = new Frustum();
+
+		const naiveTimes = [];
+		const octreeTimes = [];
 
 		async function init(){
 			camera = new PerspectiveCamera( 50, window.innerWidth/window.innerHeight, 0.1, 1000 );
@@ -70,6 +87,7 @@
 			document.body.appendChild( renderer.domElement );
 
 			controls = new FlyControls( camera, renderer.domElement );
+			controls.dragToLook = true;
 
 			scene = new Scene();
 
@@ -82,13 +100,14 @@
 			directionalLight.position.set(0, 1, 0);
 			scene.add(directionalLight);
 
-			const geometry = new BoxGeometry();
-			const materialStatic = new MeshStandardMaterial( { color: 0x00ff00 } );
+			const geometry = new BoxGeometry(0.2, 0.2, 0.2);
+			const materialStatic = new MeshStandardMaterial( { color: 0x0ffff0 } );
 			const materialDynamic = new MeshStandardMaterial( { color: 0x0000ff } );
 
 			// spawn static cubes
-			for(let i = 0; i < 500; i++){
+			for(let i = 0; i < 10000; i++){
 				const cube = new Mesh( geometry, materialStatic );
+				cube.isStatic = true;
 
 				cube.position.x = Math.random() * worldExtent * 2 - worldExtent;
 				cube.position.y = Math.random() * worldExtent * 2 - worldExtent;
@@ -109,7 +128,7 @@
 			}
 
 			// spawn dynamic cubes
-			for(let i = 0; i < 100; i++){
+			for(let i = 0; i < 1000; i++){
 				const cube = new Mesh( geometry, materialDynamic );
 
 				cube.position.x = Math.random() * worldExtent * 2 - worldExtent;
@@ -127,20 +146,19 @@
 
 				scene.add( cube );
 
-				if(dynamicCubes.length){
-					cube.position.copy(dynamicCubes[0].position);
-					cube.velocity.copy(dynamicCubes[0].velocity);
-				}
-
 				cubes.push(cube);
 				dynamicCubes.push(cube);
 			}
 
 			// selection camera
-			selectionCamera = new PerspectiveCamera( 20, window.innerWidth/window.innerHeight, 0.1, 60 );
+			selectionCamera = new PerspectiveCamera( 20, window.innerWidth/window.innerHeight, 0.1, 10 );
 			selectionCamera.position.x = -20;
 			selectionCamera.lookAt(0, 0, 0);
 			selectionCamera.updateMatrixWorld();
+
+
+			const matrix = new Matrix4().multiplyMatrices(selectionCamera.projectionMatrix, selectionCamera.matrixWorldInverse);
+        	selectionCameraFrustum.setFromProjectionMatrix(matrix);
 
 			// add camera helper
 			const helper = new CameraHelper( selectionCamera );
@@ -159,6 +177,56 @@
 			camera.aspect = window.innerWidth / window.innerHeight;
 			camera.updateProjectionMatrix();
 			renderer.setSize( window.innerWidth, window.innerHeight );
+		}
+
+		function doQueries(){
+			// I exclude bounds for fair comparison
+
+			// Naive query
+			const startNaiveQueryTime = performance.now();
+			const naiveQueryResult = [];
+			for(let i = 0; i < cubes.length; i++){
+				const cube = cubes[i];
+				if(selectionCameraFrustum.containsPoint(cube.position)){
+					naiveQueryResult.push(cube);
+				}
+			}
+			const endNaiveQueryTime = performance.now();
+
+			const naiveQueryTimeDiff = endNaiveQueryTime - startNaiveQueryTime;
+
+			naiveTimes.push(naiveQueryTimeDiff);
+
+			if(naiveTimes.length > 100){
+				naiveTimes.shift();
+			}
+
+			const averageNaiveTime = naiveTimes.reduce((a, b) => a + b, 0) / naiveTimes.length;
+
+			naiveQueryTime.innerText = `Naive query ${averageNaiveTime.toFixed(2)}ms selected ${naiveQueryResult.length} cubes`;
+
+			// Octree query
+			const startOctreeFrustumQueryTime = performance.now();
+			const octreeFrustumQueryResult = octree.inFrustum(selectionCamera).array.filter(cube => selectionCameraFrustum.containsPoint(cube.position));
+			const endOctreeFrustumQueryTime = performance.now();
+
+			const octreeFrustumQueryTimeDiff = endOctreeFrustumQueryTime - startOctreeFrustumQueryTime;
+
+			octreeTimes.push(octreeFrustumQueryTimeDiff);
+
+			if(octreeTimes.length > 100){
+				octreeTimes.shift();
+			}
+
+			const averageOctreeTime = octreeTimes.reduce((a, b) => a + b, 0) / octreeTimes.length;
+
+			octreFrustumQueryText.innerText = `Octree query ${averageOctreeTime.toFixed(2)}ms selected ${octreeFrustumQueryResult.length} cubes`;
+
+			selectedCubes = octreeFrustumQueryResult;
+
+			const performanceGain = averageNaiveTime / averageOctreeTime;
+
+			performanceGainText.innerText = `Octree is ${performanceGain.toFixed(2)}x faster`;
 		}
 
 		function render() {
@@ -184,7 +252,7 @@
 					cube.velocity.z *= -1;
 				}
 
-				cube.updateMatrixWorld(true);
+				cube.updateMatrixWorld();
 
 				octree.updateMesh(cube);
 			}
@@ -204,7 +272,7 @@
 				}
 			}
 
-			selectedCubes = octree.inFrustum(selectionCamera).array.slice();
+			doQueries();
 
 			for(let i = 0; i < selectedCubes.length; i++){
 				const cube = selectedCubes[i];
@@ -218,6 +286,7 @@
 			octree.debugDraw();
 
 			controls.update(1);
+
 		};
 
 		init();

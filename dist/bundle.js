@@ -11041,6 +11041,7 @@ class UniqueArray {
 }
 
 const debugDrawColor = new Color(0, 1, 0);
+const b = new Box3();
 class OctreeBlock {
     constructor(minPoint, maxPoint, capacity, depth, maxDepth) {
         this.entries = new UniqueArray();
@@ -11085,7 +11086,7 @@ class OctreeBlock {
         return this._descendantCount;
     }
     addEntry(entry) {
-        var _a, _b, _c;
+        var _a, _b;
         if (this.blocks) {
             let added = false;
             for (let index = 0; index < this.blocks.length; index++) {
@@ -11101,18 +11102,30 @@ class OctreeBlock {
         }
         // Using a max bounding box so we can cache the result for any given orientation of the mesh
         this.computeMaxBoundingBox(entry);
-        const boundingBoxWorld = (_a = entry._maxBoundingBox) === null || _a === void 0 ? void 0 : _a.clone().applyMatrix4(entry.matrixWorld);
+        const boundingBoxWorld = b;
+        // If the mesh is static, we can cache the world bounding box
+        if (entry.isStatic) {
+            if (!entry._maxWorldBoundingBox) {
+                entry._maxWorldBoundingBox = entry._maxBoundingBox.clone().applyMatrix4(entry.matrixWorld);
+            }
+            boundingBoxWorld.copy(entry._maxWorldBoundingBox);
+        }
+        else {
+            boundingBoxWorld.copy(entry._maxBoundingBox).applyMatrix4(entry.matrixWorld);
+        }
         let added = false;
         if (boundingBoxWorld === null || boundingBoxWorld === void 0 ? void 0 : boundingBoxWorld.intersectsBox(this.box)) {
             added = this.entries.add(entry);
         }
         if (this.entries.length > this.capacity && this._depth < this._maxDepth) {
             // if we have more entries than our capacity, set dirty on root
-            (_c = (_b = this._root).setDirty) === null || _c === void 0 ? void 0 : _c.call(_b);
+            (_b = (_a = this._root).setDirty) === null || _b === void 0 ? void 0 : _b.call(_a);
         }
         return added;
     }
     computeMaxBoundingBox(entry) {
+        if (entry._maxBoundingBox)
+            return;
         entry.geometry.computeBoundingBox();
         const bounds = entry.geometry.boundingBox;
         const width = bounds.max.x - bounds.min.x;
